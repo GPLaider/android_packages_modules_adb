@@ -187,25 +187,23 @@ static void drop_privileges() {
 
 static void setup_adb(const std::vector<std::string>& addrs) {
 #if defined(__ANDROID__)
-    // Get the first valid port from addrs and register it with mDNS.
+    // Advertise only wildcard TCP listeners. Host-bound listeners stay private.
     int port = -1;
     std::string error;
     for (const auto& addr : addrs) {
-        port = get_host_socket_spec_port(addr, &error);
-        if (port != -1) {
+        std::string hostname;
+        if (parse_tcp_socket_spec(addr, &hostname, &port, nullptr, &error) && hostname.empty()) {
             break;
         }
+        port = -1;
     }
-    if (port == -1) {
-        port = DEFAULT_ADB_LOCAL_TRANSPORT_PORT;
+    if (port != -1) {
+        // TODO: Advertise every wildcard TCP socket, not just the first one.
+        register_adb_tcp_service(port);
     }
-    // TODO: We should advertise every TCP socket, not just the first one.
-    //  Move this in server_socket_thread and make sure we only call it if the socket is "tcp:" (vs
-    //  "vsock:").
-    register_adb_tcp_service(port);
 #endif
     for (const auto& addr : addrs) {
-        LOG(INFO) << "adbd listening on " << addr;
+        LOG(INFO) << "adbd listener starting";
         init_transport_socket_server(addr);
     }
 }

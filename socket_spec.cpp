@@ -377,9 +377,12 @@ int socket_spec_listen(std::string_view spec, std::string* error, int* resolved_
         } else if (hostname == "::1") {
             result = network_loopback_server(port, SOCK_STREAM, error, false);
         } else {
-            // TODO: Implement me.
+#if ADB_WINDOWS
             *error = "listening on specified hostname currently unsupported";
             return -1;
+#else
+            result = network_address_server(hostname, port, SOCK_STREAM, error);
+#endif
         }
 
         if (result >= 0 && resolved_port) {

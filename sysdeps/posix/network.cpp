@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <memory>
 #include <string>
 
 #include <android-base/logging.h>
@@ -33,6 +34,47 @@ static void set_error(std::string* error) {
     if (error) {
         *error = strerror(errno);
     }
+}
+
+int network_address_server(const std::string& address, int port, int type, std::string* error) {
+    addrinfo hints = {};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = type;
+    hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+
+    addrinfo* raw_addresses = nullptr;
+    const std::string service = std::to_string(port);
+    const int gai_error = getaddrinfo(address.c_str(), service.c_str(), &hints, &raw_addresses);
+    if (gai_error != 0) {
+        if (error) {
+            *error = android::base::StringPrintf("invalid numeric listen address: %s",
+                                                 gai_strerror(gai_error));
+        }
+        errno = EINVAL;
+        return -1;
+    }
+    std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> addresses(raw_addresses, freeaddrinfo);
+
+    for (addrinfo* current = addresses.get(); current != nullptr; current = current->ai_next) {
+        unique_fd server(socket(current->ai_family, current->ai_socktype, current->ai_protocol));
+        if (server == -1) {
+            continue;
+        }
+
+        int reuse = 1;
+        setsockopt(server.get(), SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        if (bind(server.get(), current->ai_addr, current->ai_addrlen) != 0) {
+            continue;
+        }
+        if ((type == SOCK_STREAM || type == SOCK_SEQPACKET) &&
+            listen(server.get(), SOMAXCONN) != 0) {
+            continue;
+        }
+        return server.release();
+    }
+
+    set_error(error);
+    return -1;
 }
 
 static sockaddr* loopback_addr4(sockaddr_storage* addr, socklen_t* addrlen, int port) {

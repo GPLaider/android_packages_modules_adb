@@ -149,7 +149,7 @@ void server_socket_thread(std::string_view addr) {
 }
 
 void init_transport_socket_server(const std::string& addr) {
-    VLOG(TRANSPORT) << "Starting tcp server on '" << addr << "'";
+    VLOG(TRANSPORT) << "Starting tcp server";
     std::thread(server_socket_thread, addr).detach();
 }
 

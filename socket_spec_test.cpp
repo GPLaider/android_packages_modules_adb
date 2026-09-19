@@ -224,6 +224,23 @@ TEST(socket_spec, socket_spec_listen_connect_tcp) {
     EXPECT_NE(client_fd.get(), -1);
 }
 
+TEST(socket_spec, socket_spec_listen_connect_tcp_specific_ipv4) {
+#if defined(_WIN32)
+    GTEST_SKIP() << "specific-address listeners are not supported on Windows";
+#else
+    std::string error, serial;
+    int port = 0;
+    unique_fd server_fd, client_fd;
+
+    server_fd.reset(socket_spec_listen("tcp:127.0.0.1:0", &error, &port));
+    ASSERT_NE(server_fd.get(), -1) << error;
+    ASSERT_GT(port, 0);
+    const std::string address = android::base::StringPrintf("tcp:127.0.0.1:%d", port);
+    EXPECT_TRUE(socket_spec_connect(&client_fd, address, &port, &serial, &error)) << error;
+    EXPECT_NE(client_fd.get(), -1);
+#endif
+}
+
 TEST(socket_spec, socket_spec_listen_connect_vsock_success) {
 #ifndef __linux__
     GTEST_SKIP() << "vsock is only supported on Linux";
